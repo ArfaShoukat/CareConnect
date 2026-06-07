@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { SirenIcon, HeartIcon, PillIcon, ClockIcon, CheckIcon, CopyIcon, MicIcon } from './Icons'
+import { checkSafeZone, formatDistance } from '../utils/geoUtils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -421,16 +422,109 @@ const STATUS_META = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
-  const [alerting, setAlerting] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [alerting, setAlerting]         = useState(false)
+  const [copied, setCopied]             = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
 
-  const status = groupData?.status || 'unknown'
-  const medicines = groupData?.medicines || []
-  const meta = STATUS_META[status] || STATUS_META.unknown
+  // ── Geo-fence state ───────────────────────────────────────────────────────
+  // geoStatus: null | 'acquiring' | 'inside' | 'outside' | 'unavailable'
+  const [geoStatus, setGeoStatus]         = useState(null)
+  const [geoDistance, setGeoDistance]     = useState(null)
+  const breachLoggedRef                   = useRef(false) // prevent duplicate log entries
+
+  const status      = groupData?.status || 'unknown'
+  const medicines   = groupData?.medicines || []
+  const meta        = STATUS_META[status] || STATUS_META.unknown
   const isEmergency = status === 'emergency'
   const isCheckedIn = status === 'checked_in'
-  const groupRef = doc(db, 'care_groups', careCode)
+  const groupRef    = doc(db, 'care_groups', careCode)
+
+  // ── Safe zone — read entirely from Firestore, no fallbacks ───────────────
+  // Family member sets this via the "Set Current Location as Safe Zone" button.
+  // Until configured, geo-fence evaluation is skipped.
+  const safeZone = (groupData?.safe_lat && groupData?.safe_lng)
+    ? {
+        lat:    groupData.safe_lat,
+        lng:    groupData.safe_lng,
+        radius: groupData.safe_radius_meters ?? 200,
+      }
+    : null
+
+  // ── Core location processor — called on every GPS tick ───────────────────
+  function processLocation(lat, lng) {
+    // Broadcast live coordinates to Firestore for family view regardless of
+    // whether a safe zone is configured yet
+    const update = {
+      live_location: {
+        lat,
+        lng,
+        updated_at: new Date().toISOString(),
+      },
+    }
+
+    // Only evaluate geo-fence if the family has configured a safe zone
+    if (safeZone) {
+      const { outside, distanceMeters } = checkSafeZone(
+        lat, lng, safeZone.lat, safeZone.lng, safeZone.radius
+      )
+      setGeoDistance(distanceMeters)
+      setGeoStatus(outside ? 'outside' : 'inside')
+
+      update.live_location.is_breached     = outside
+      update.live_location.distance_meters = distanceMeters
+
+      if (outside && !breachLoggedRef.current) {
+        breachLoggedRef.current = true
+        updateDoc(groupRef, {
+          is_breached: true,
+          status: 'emergency',
+          activity_logs: arrayUnion({
+            type:    'geo_breach',
+            emoji:   '🚨',
+            message: `Safe Zone Breach: ${userProfile?.name || 'Elder'} has wandered outside the designated safe zone! (${formatDistance(distanceMeters)} from home)`,
+            time:    ts(),
+            id:      Date.now(),
+          }),
+        }).catch(err => console.error('Geo-breach write failed:', err))
+      }
+
+      if (!outside && breachLoggedRef.current) {
+        breachLoggedRef.current = false
+        updateDoc(groupRef, {
+          is_breached: false,
+          activity_logs: arrayUnion({
+            type:    'geo_return',
+            emoji:   '🏠',
+            message: `Safe Zone Restored: ${userProfile?.name || 'Elder'} has returned within the safe zone.`,
+            time:    ts(),
+            id:      Date.now(),
+          }),
+        }).catch(err => console.error('Geo-return write failed:', err))
+      }
+    } else {
+      setGeoStatus('no_zone')
+    }
+
+    updateDoc(groupRef, update)
+      .catch(err => console.error('live_location write failed:', err))
+  }
+
+  // ── Real GPS watcher ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus('unavailable')
+      return
+    }
+    setGeoStatus('acquiring')
+    breachLoggedRef.current = false
+
+    const watchId = navigator.geolocation.watchPosition(
+      ({ coords }) => processLocation(coords.latitude, coords.longitude),
+      (err) => { console.warn('Geolocation error:', err.message); setGeoStatus('unavailable') },
+      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 }
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [safeZone?.lat, safeZone?.lng, safeZone?.radius])
 
   // ── Firestore write helper ────────────────────────────────────────────────
   async function pushUpdate(newStatus, logEntry) {
@@ -564,6 +658,47 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
           {isEmergency ? 'URGENT' : isCheckedIn ? 'TODAY' : 'PENDING'}
         </span>
       </div>
+
+      {/* ── Safe Zone Status ─────────────────────────────────────────────── */}
+      {geoStatus && (
+        <div
+          className={`rounded-2xl border-2 px-5 py-3.5 transition-all duration-500 ${
+            geoStatus === 'outside'   ? 'bg-red-50 border-red-400' :
+            geoStatus === 'inside'    ? 'bg-emerald-50 border-emerald-300' :
+            geoStatus === 'no_zone'   ? 'bg-amber-50 border-amber-300' :
+                                        'bg-slate-50 border-slate-200'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl" aria-hidden="true">
+              {geoStatus === 'outside'   ? '🚨' :
+               geoStatus === 'inside'    ? '🏠' :
+               geoStatus === 'no_zone'   ? '⚙️' :
+               geoStatus === 'acquiring' ? '📡' : '📵'}
+            </span>
+            <div className="flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live Safe Zone</p>
+              <p className={`text-sm font-extrabold ${
+                geoStatus === 'outside'  ? 'text-red-700' :
+                geoStatus === 'inside'   ? 'text-emerald-700' :
+                geoStatus === 'no_zone'  ? 'text-amber-700' : 'text-slate-500'
+              }`}>
+                {geoStatus === 'outside'   ? `Breach! — ${formatDistance(geoDistance)} from home` :
+                 geoStatus === 'inside'    ? `Inside Safe Zone · ${geoDistance != null ? formatDistance(geoDistance) + ' from centre' : ''}` :
+                 geoStatus === 'no_zone'   ? 'Safe zone not set — ask your family to configure it' :
+                 geoStatus === 'acquiring' ? 'Acquiring GPS signal…' : 'Location unavailable'}
+              </p>
+            </div>
+            {geoStatus === 'outside' && (
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800 animate-pulse">
+                ALERT
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Emergency Panic Button ──────────────────────────────────────── */}
       <div

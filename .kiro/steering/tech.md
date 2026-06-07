@@ -17,7 +17,7 @@
 | Collection | Doc ID | Purpose |
 |---|---|---|
 | `users` | `uid` | User profile: `name`, `email`, `role`, `careCode` |
-| `care_groups` | `careCode` | Group data: `status`, `medicines[]`, `activity_logs[]`, `members[]`, `elderlyUid/Name/Email`, `createdAt` |
+| `care_groups` | `careCode` | Group data: `status`, `medicines[]`, `activity_logs[]`, `members[]`, `elderlyUid/Name/Email`, `phone`, `createdAt`, `safe_lat`, `safe_lng`, `safe_radius_meters`, `is_breached` |
 
 ## Linting
 

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { PillIcon, ClockIcon, ActivityIcon, PlusIcon, TrashIcon, ShieldIcon, PhoneIcon } from './Icons'
+import { formatDistance } from '../utils/geoUtils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,240 @@ function AiInsights({ status, logs }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Live Tracker Widget ───────────────────────────────────────────────────────
+
+function LiveTrackerWidget({ liveLocation, elderlyName, safeZone, groupRef }) {
+  const [settingZone, setSettingZone] = useState(false)
+  const [drawerOpen, setDrawerOpen]   = useState(false)
+
+  // ── Firestore: Set Current Location as Safe Zone ──────────────────────────
+  async function handleSetSafeZone() {
+    if (!liveLocation?.lat || !liveLocation?.lng) return
+    setSettingZone(true)
+    try {
+      await updateDoc(groupRef, {
+        safe_lat:           liveLocation.lat,
+        safe_lng:           liveLocation.lng,
+        safe_radius_meters: 200,
+        is_breached:        false,
+        activity_logs: arrayUnion({
+          type:    'safe_zone_set',
+          emoji:   '🏠',
+          message: `Safe Zone configured at (${liveLocation.lat.toFixed(5)}, ${liveLocation.lng.toFixed(5)}) with a 200 m radius.`,
+          time:    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          id:      Date.now(),
+        }),
+      })
+    } catch (err) {
+      console.error('Failed to set safe zone:', err)
+    } finally {
+      setSettingZone(false)
+    }
+  }
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const hasLocation     = !!(liveLocation?.lat && liveLocation?.lng)
+  const hasSafeZone     = !!(safeZone?.lat && safeZone?.lng)
+  const distance_meters = liveLocation?.distance_meters ?? null
+  const is_breached     = liveLocation?.is_breached     ?? false
+  const lat             = liveLocation?.lat
+  const lng             = liveLocation?.lng
+  const radius          = safeZone?.radius ?? 200
+
+  const updatedAt = liveLocation?.updated_at
+    ? new Date(liveLocation.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null
+
+  // Progress bar — caps at 100% once distance reaches 3× the radius
+  const pct = (hasSafeZone && distance_meters != null)
+    ? Math.min(100, Math.round((distance_meters / (radius * 3)) * 100))
+    : 0
+
+  const mapsUrl = hasLocation ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : null
+  const homeUrl = hasSafeZone ? `https://www.google.com/maps/search/?api=1&query=${safeZone.lat},${safeZone.lng}` : null
+
+  return (
+    <motion.section
+      aria-labelledby="tracker-heading"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className={`relative overflow-hidden rounded-3xl border-2 shadow-lg transition-colors duration-500 ${
+        is_breached
+          ? 'border-red-400 bg-gradient-to-br from-red-950/80 via-red-900/70 to-rose-950/80'
+          : 'border-emerald-400/50 bg-gradient-to-br from-slate-900 via-emerald-950/60 to-slate-900'
+      }`}
+    >
+      {/* Accent bar */}
+      <div
+        className={`h-1 ${is_breached
+          ? 'bg-gradient-to-r from-red-500 via-orange-400 to-red-500 animate-pulse'
+          : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500'
+        }`}
+        aria-hidden="true"
+      />
+
+      {/* ── Main visible card ───────────────────────────────────────────── */}
+      <div className="px-5 py-4 flex flex-col gap-4">
+
+        {/* Header row — name, time, badge, gear */}
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-2xl flex items-center justify-center border shrink-0 ${
+            is_breached ? 'bg-red-500/20 border-red-400/40' : 'bg-emerald-500/15 border-emerald-400/30'
+          }`}>
+            <span className="text-base" aria-hidden="true">{is_breached ? '🚨' : '📍'}</span>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h2 id="tracker-heading" className="text-sm font-black text-white truncate">
+              {elderlyName || 'Elder'}
+            </h2>
+            <p className="text-[11px] text-white/45 mt-0.5">
+              {updatedAt ? `Updated ${updatedAt}` : 'Waiting for GPS signal…'}
+            </p>
+          </div>
+
+          {/* Status badge */}
+          <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${
+            !hasSafeZone  ? 'bg-amber-500/20 border-amber-400/30 text-amber-300' :
+            is_breached   ? 'bg-red-500/30 border-red-400/40 text-red-300 animate-pulse' :
+                            'bg-emerald-500/20 border-emerald-400/30 text-emerald-300'
+          }`}>
+            {!hasSafeZone ? 'ZONE NOT SET' : is_breached ? '🚨 BREACH' : '✓ SAFE'}
+          </span>
+
+          {/* Settings / gear toggle */}
+          <motion.button
+            onClick={() => setDrawerOpen(v => !v)}
+            whileHover={{ rotate: drawerOpen ? -30 : 30 }}
+            whileTap={{ scale: 0.9 }}
+            aria-label={drawerOpen ? 'Close settings' : 'Open settings'}
+            aria-expanded={drawerOpen}
+            aria-controls="tracker-drawer"
+            className="ml-1 w-8 h-8 flex items-center justify-center rounded-xl bg-white/8 border border-white/12 text-white/50 hover:text-white hover:bg-white/15 transition-colors shrink-0"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </motion.button>
+        </div>
+
+        {/* Distance progress — only when everything is available */}
+        {hasSafeZone && distance_meters != null && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-white/50">Distance from Safe Zone</p>
+              <p className={`text-sm font-black ${is_breached ? 'text-red-300' : 'text-emerald-300'}`}>
+                {formatDistance(distance_meters)}
+              </p>
+            </div>
+            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full ${is_breached
+                  ? 'bg-gradient-to-r from-red-500 to-orange-400'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                }`}
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              />
+            </div>
+            <p className="text-[10px] text-white/25">Safe radius: {formatDistance(radius)}</p>
+          </div>
+        )}
+
+        {/* No location placeholder */}
+        {!hasLocation && (
+          <p className="text-xs text-white/35 text-center py-1">
+            Waiting for elder's device to share location…
+          </p>
+        )}
+      </div>
+
+      {/* ── Sliding settings drawer ─────────────────────────────────────── */}
+      <AnimatePresence initial={false}>
+        {drawerOpen && (
+          <motion.div
+            id="tracker-drawer"
+            key="drawer"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5 flex flex-col gap-4 border-t border-white/10 pt-4">
+
+              {/* Lat / Lng grid */}
+              {hasLocation && (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Latitude',  val: lat.toFixed(6) },
+                    { label: 'Longitude', val: lng.toFixed(6) },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-white/35">{label}</p>
+                      <p className="text-sm font-black text-white font-mono mt-0.5">{val}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Safe zone centre coordinates */}
+              {hasSafeZone && (
+                <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-white/35 mb-1">Safe Zone Centre</p>
+                  <p className="text-xs font-mono text-white/70">
+                    {safeZone.lat.toFixed(6)}, {safeZone.lng.toFixed(6)}
+                  </p>
+                  <p className="text-[10px] text-white/30 mt-0.5">Radius: {formatDistance(radius)}</p>
+                </div>
+              )}
+
+              {/* Maps deep-links */}
+              {hasLocation && (
+                <div className="flex gap-2">
+                  {mapsUrl && (
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold bg-white/8 border border-white/12 text-white/70 hover:bg-white/15 hover:text-white transition-colors">
+                      📍 Current Pin
+                    </a>
+                  )}
+                  {homeUrl && (
+                    <a href={homeUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold bg-white/8 border border-white/12 text-white/70 hover:bg-white/15 hover:text-white transition-colors">
+                      🏠 Safe Zone Pin
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Set / Update Safe Zone button */}
+              {hasLocation && (
+                <motion.button
+                  onClick={handleSetSafeZone}
+                  disabled={settingZone}
+                  whileHover={settingZone ? {} : { scale: 1.02 }}
+                  whileTap={settingZone ? {} : { scale: 0.97 }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-emerald-900 bg-emerald-400 hover:bg-emerald-300 shadow-md shadow-emerald-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {settingZone ? (
+                    <><span className="w-4 h-4 border-2 border-emerald-700/40 border-t-emerald-900 rounded-full animate-spin" aria-hidden="true" /> Saving…</>
+                  ) : (
+                    hasSafeZone ? '🔄 Update Safe Zone to Current Location' : '🏠 Set Current Location as Safe Zone'
+                  )}
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.section>
   )
 }
 
@@ -522,6 +757,18 @@ export default function FamilyDashboard({ groupData, careCode, userProfile }) {
           </p>
         </div>
       </div>
+
+      {/* ── Live Tracker Widget — always visible ─────────────────────────── */}
+      <LiveTrackerWidget
+        liveLocation={groupData?.live_location}
+        elderlyName={groupData?.elderlyName}
+        groupRef={groupRef}
+        safeZone={
+          groupData?.safe_lat && groupData?.safe_lng
+            ? { lat: groupData.safe_lat, lng: groupData.safe_lng, radius: groupData.safe_radius_meters ?? 200 }
+            : null
+        }
+      />
 
       {/* ── Live status card ─────────────────────────────────────────────── */}
       <section aria-labelledby="fam-status-heading">
