@@ -84,99 +84,123 @@ const features = [
 ]
 
 const steps = [
-  { step: '01', title: 'Elderly signs up', desc: 'Creates an account and receives a unique Care Code.' },
-  { step: '02', title: 'Family joins',     desc: 'Registers with the Care Code to link to the care group.' },
-  { step: '03', title: 'Stay connected',   desc: 'Real-time alerts, check-ins, and medicine reminders — live.' },
+  { step: '01', title: 'Elderly signs up',     desc: 'Creates an account and receives a unique Care Code.' },
+  { step: '02', title: 'Family joins',        desc: 'Registers with the Care Code to link to the care group.' },
+  { step: '03', title: 'Stay connected',      desc: 'Real-time alerts, check-ins, and medicine reminders — live.' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function LandingPage({ onOpenAuth }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col font-['Plus_Jakarta_Sans',system-ui,sans-serif] antialiased selection:bg-indigo-500/10 selection:text-indigo-900 bg-slate-50">
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+      <section className="relative min-h-[95vh] flex items-center overflow-hidden bg-white px-4 sm:px-6 lg:px-8">
 
-        {/* Background image — no animation, instant */}
+        {/* Background Layer with Soft Care Image Overlay */}
         <div className="absolute inset-0 z-0">
           <img
-            src="https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1200&auto=format&fit=crop&q=80"
-            alt=""
+            src="https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=1400&auto=format&fit=crop&q=80"
+            alt="Elderly care dashboard companion illustration"
             aria-hidden="true"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover object-center opacity-[0.07] filter scale-102 blur-[0.5px]"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/92 via-indigo-950/78 to-slate-900/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-transparent" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
         </div>
 
-        {/* Hero content — staggered mount animation */}
-        <motion.div
-          className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-24 flex flex-col gap-8 max-w-2xl"
-          variants={stagger(0.12)}
-          initial="hidden"
-          animate="show"
-        >
-          {/* Live badge */}
-          <motion.div variants={fadeUp(0)} className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 rounded-full px-4 py-1.5 w-fit">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
-            <span className="text-white/80 text-xs font-semibold tracking-wide">Live · Secure · Always Connected</span>
-          </motion.div>
+        {/* Premium subtle light gradient orbs for a dashboard theme */}
+        <div className="pointer-events-none absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full bg-indigo-400/10 blur-[120px]" aria-hidden="true" />
+        <div className="pointer-events-none absolute bottom-[10%] right-[5%] w-[450px] h-[450px] rounded-full bg-emerald-400/10 blur-[100px]" aria-hidden="true" />
 
-          {/* Heading — clip-reveal per line */}
-          <div className="flex flex-col gap-1 overflow-hidden">
-            <motion.h1
-              className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.1]"
-              variants={clipReveal(0.1)}
-            >
-              Care that connects
-            </motion.h1>
-            <motion.div variants={clipReveal(0.22)}>
-              <span className="text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.1] bg-gradient-to-r from-indigo-400 via-violet-300 to-pink-400 bg-clip-text text-transparent">
-                every family.
-              </span>
+        <div className="relative z-10 max-w-7xl mx-auto w-full py-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Left Side: Text and Actions */}
+          <motion.div
+            className="lg:col-span-7 flex flex-col gap-7 text-left max-w-xl"
+            variants={stagger(0.12)}
+            initial="hidden"
+            animate="show"
+          >
+            {/* Live badge */}
+            <motion.div variants={fadeUp(0)} className="inline-flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-full px-4 py-1.5 w-fit shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
+              <span className="text-slate-700 text-xs font-bold tracking-wide uppercase">Live · Secure · Family Ecosystem</span>
             </motion.div>
-          </div>
 
-          {/* Description */}
-          <motion.p variants={fadeUp(0.3)} className="text-slate-300 text-lg sm:text-xl leading-relaxed max-w-xl">
-            CareConnect gives elderly loved ones a safety net and gives families real-time peace of mind —
-            emergency alerts, medication reminders, and daily check-ins, all in one place.
-          </motion.p>
+            {/* Heading — clip-reveal per line */}
+            <div className="flex flex-col gap-2 overflow-hidden">
+              <motion.h1
+                className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[1.15]"
+                variants={clipReveal(0.1)}
+              >
+                Care that connects
+              </motion.h1>
+              <motion.div variants={clipReveal(0.22)}>
+                <span className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
+                  every family.
+                </span>
+              </motion.div>
+            </div>
 
-          {/* CTA buttons */}
-          <motion.div variants={fadeUp(0.4)} className="flex flex-col sm:flex-row gap-3">
-            <motion.button
-              onClick={() => onOpenAuth('signup')}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              className="group flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-xl shadow-indigo-500/30 transition-colors duration-200 text-base"
-            >
-              Start Free Today
-              <span className="group-hover:translate-x-1 transition-transform duration-200">
-                <ArrowRightIcon size={18} />
-              </span>
-            </motion.button>
+            {/* Description */}
+            <motion.p variants={fadeUp(0.3)} className="text-slate-600 text-lg sm:text-xl leading-relaxed font-medium">
+              CareConnect gives elderly loved ones a digital safety net and gives families real-time peace of mind —
+              emergency alerts, medication reminders, and daily check-ins, all in one simplified interface.
+            </motion.p>
 
-            <motion.button
-              onClick={() => onOpenAuth('login')}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center justify-center px-7 py-4 rounded-2xl font-bold text-white/90 border border-white/20 bg-white/10 hover:bg-white/20 backdrop-blur transition-colors duration-200 text-base"
-            >
-              Log In
-            </motion.button>
+            {/* CTA buttons */}
+            <motion.div variants={fadeUp(0.4)} className="flex flex-col sm:flex-row gap-4.5">
+              <motion.button
+                onClick={() => onOpenAuth('signup')}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className="group flex items-center justify-center gap-2.5 px-8 py-4.5 rounded-2xl font-extrabold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-[0_15px_30px_rgba(79,70,229,0.2)] transition-all text-base"
+              >
+                Start Free Today
+                <ArrowRightIcon size={18} className="group-hover:translate-x-1 transition-transform duration-200" />
+              </motion.button>
+
+              <motion.button
+                onClick={() => onOpenAuth('login')}
+                whileHover={{ scale: 1.02, bg: '#f1f5f9' }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center justify-center px-8 py-4.5 rounded-2xl font-bold text-slate-700 border border-slate-200 bg-slate-50 transition-all text-base shadow-sm"
+              >
+                Log In
+              </motion.button>
+            </motion.div>
+
+            {/* Subtext */}
+            <motion.p variants={fadeUp(0.5)} className="text-slate-400 text-xs font-semibold tracking-wide uppercase">
+              No credit card required · Free platform setup · Instant verification
+            </motion.p>
           </motion.div>
 
-          {/* Subtext */}
-          <motion.p variants={fadeUp(0.5)} className="text-slate-400 text-sm">
-            No credit card needed · Free to use · Set up in minutes
-          </motion.p>
-        </motion.div>
+          {/* Right Side: High-Quality Family Interaction Image */}
+          <motion.div 
+            className="lg:col-span-5 hidden lg:block relative"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="absolute -inset-2 rounded-[2.5rem] bg-gradient-to-br from-indigo-500/10 to-transparent blur-xl" />
+            <div className="relative rounded-[2rem] overflow-hidden border border-slate-200/80 shadow-xl bg-white aspect-[4/3] max-h-[440px]">
+              <img 
+                src="https://images.unspash.com/photo-1516627145497-ae6968895b74?w=800&auto=format&fit=crop&q=85" 
+                alt="Happy family staying connected through digital healthcare application" 
+                className="w-full h-full object-cover filter contrast-[1.01]"
+              />
+            </div>
+          </motion.div>
+
+        </div>
       </section>
 
       {/* ── How it works ──────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-b from-slate-50 to-white py-20 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto flex flex-col gap-12">
+      <section className="bg-slate-50 py-24 px-4 sm:px-6 border-t border-slate-100">
+        <div className="max-w-6xl mx-auto flex flex-col gap-14">
 
           {/* Section heading */}
           <motion.div
@@ -186,8 +210,8 @@ export default function LandingPage({ onOpenAuth }) {
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp()}
           >
-            <p className="text-xs font-black uppercase tracking-widest text-indigo-500">How It Works</p>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900">Up and running in three steps.</h2>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">How It Works</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Up and running in three steps.</h2>
           </motion.div>
 
           {/* Step cards — staggered scroll reveal */}
@@ -202,14 +226,16 @@ export default function LandingPage({ onOpenAuth }) {
               <motion.div
                 key={step}
                 variants={scrollFadeUp}
-                whileHover={{ y: -4, boxShadow: '0 12px 32px -8px rgba(99,102,241,0.18)' }}
-                className="flex flex-col gap-3 p-6 rounded-3xl border border-slate-100 bg-white shadow-sm transition-colors duration-200"
+                whileHover={{ y: -5, borderColor: 'rgba(99,102,241,0.25)', boxShadow: '0 12px 30px -10px rgba(99,102,241,0.08)' }}
+                className="flex flex-col gap-3.5 p-7 rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 relative"
               >
-                <span className="text-4xl font-black bg-gradient-to-br from-indigo-500 to-violet-500 bg-clip-text text-transparent">
+                <span className="text-4xl font-black bg-gradient-to-br from-indigo-600 to-violet-500 bg-clip-text text-transparent tracking-tight">
                   {step}
                 </span>
-                <h3 className="font-black text-slate-800 text-base">{title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base mb-1 tracking-tight">{title}</h3>
+                  <p className="text-slate-600 text-sm leading-relaxed font-medium">{desc}</p>
+                </div>
               </motion.div>
             ))}
           </motion.div>
@@ -217,8 +243,8 @@ export default function LandingPage({ onOpenAuth }) {
       </section>
 
       {/* ── Features grid ─────────────────────────────────────────────────── */}
-      <section className="bg-white py-20 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto flex flex-col gap-12">
+      <section className="bg-white py-24 px-4 sm:px-6 border-t border-slate-100">
+        <div className="max-w-6xl mx-auto flex flex-col gap-16">
 
           {/* Section heading */}
           <motion.div
@@ -228,18 +254,18 @@ export default function LandingPage({ onOpenAuth }) {
             viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp()}
           >
-            <p className="text-xs font-black uppercase tracking-widest text-indigo-500">Why CareConnect</p>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Why CareConnect</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
               Everything your family needs,<br className="hidden sm:block" /> in one simple app.
             </h2>
-            <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            <p className="text-slate-500 text-base sm:text-lg max-w-xl mx-auto font-medium mt-1">
               Designed for elderly users who need simplicity and families who need clarity.
             </p>
           </motion.div>
 
           {/* Feature cards — staggered scroll reveal */}
           <motion.div
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-60px' }}
@@ -250,25 +276,26 @@ export default function LandingPage({ onOpenAuth }) {
                 key={i}
                 variants={scrollFadeUp}
                 whileHover={{
-                  y: -5,
-                  scale: 1.02,
-                  boxShadow: '0 16px 40px -12px rgba(99,102,241,0.15)',
+                  y: -6,
+                  scale: 1.015,
+                  boxShadow: '0 16px 35px -10px rgba(99,102,241,0.08)',
+                  borderColor: 'rgba(99,102,241,0.2)',
                 }}
-                whileTap={{ scale: 0.985 }}
-                className="group flex flex-col gap-4 p-6 rounded-3xl border border-slate-100 hover:border-indigo-100 cursor-default transition-colors duration-200"
+                whileTap={{ scale: 0.99 }}
+                className="group flex flex-col gap-5 p-7 rounded-3xl border border-slate-200 bg-white hover:bg-slate-50/40 cursor-default transition-all duration-300"
               >
                 {/* Icon — micro-interaction: scale + color shift on card hover */}
                 <motion.div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors duration-200 ${f.color} ${f.iconHover}`}
-                  whileHover={{ rotate: [0, -8, 8, 0] }}
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 ${f.color} ${f.iconHover} border border-transparent`}
+                  whileHover={{ rotate: [0, -6, 6, 0] }}
                   transition={{ duration: 0.35 }}
                 >
                   {f.icon}
                 </motion.div>
 
                 <div>
-                  <h3 className="font-black text-slate-800 text-base mb-1.5">{f.title}</h3>
-                  <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
+                  <h3 className="font-extrabold text-slate-900 text-lg mb-1.5 tracking-tight group-hover:text-indigo-600 transition-colors">{f.title}</h3>
+                  <p className="text-slate-600 text-sm leading-relaxed font-medium">{f.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -277,40 +304,42 @@ export default function LandingPage({ onOpenAuth }) {
       </section>
 
       {/* ── CTA ───────────────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-br from-indigo-600 via-violet-600 to-pink-600 py-24 px-4 sm:px-6">
+      <section className="bg-gradient-to-br from-indigo-600 via-violet-600 to-pink-600 py-28 px-4 sm:px-6 relative overflow-hidden">
+        
+        {/* Abstract structural overlay inside background to enhance aesthetic */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:3rem_3rem]" aria-hidden="true" />
+        
         <motion.div
-          className="max-w-2xl mx-auto text-center flex flex-col gap-6"
+          className="max-w-2xl mx-auto text-center flex flex-col gap-6 relative z-10"
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: '-80px' }}
           variants={stagger(0.15)}
         >
-          <motion.h2 variants={fadeUp()} className="text-3xl sm:text-4xl font-black text-white leading-tight">
+          <motion.h2 variants={fadeUp()} className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.2]">
             Give your family the gift of safety.
           </motion.h2>
-          <motion.p variants={fadeUp(0.1)} className="text-indigo-100 text-lg">
-            Set up CareConnect in minutes and start monitoring what matters most.
+          <motion.p variants={fadeUp(0.1)} className="text-indigo-100 text-lg font-medium max-w-xl mx-auto">
+            Set up CareConnect in minutes and start monitoring what matters most with absolute cloud reliability.
           </motion.p>
-          <motion.div variants={fadeUp(0.2)}>
+          <motion.div variants={fadeUp(0.2)} className="mt-2">
             <motion.button
               onClick={() => onOpenAuth('signup')}
-              whileHover={{ scale: 1.05, boxShadow: '0 12px 32px -8px rgba(255,255,255,0.25)' }}
+              whileHover={{ scale: 1.03, y: -2, boxShadow: '0 15px 30px rgba(0,0,0,0.15)' }}
               whileTap={{ scale: 0.97 }}
-              className="group inline-flex items-center justify-center gap-2.5 mx-auto px-8 py-4 rounded-2xl font-bold text-indigo-700 bg-white hover:bg-indigo-50 shadow-xl transition-colors duration-150 text-base"
+              className="group inline-flex items-center justify-center gap-2.5 mx-auto px-9 py-4.5 rounded-2xl font-extrabold text-indigo-700 bg-white hover:bg-indigo-50 transition-all text-base shadow-md"
             >
               Create Your Care Circle
-              <span className="group-hover:translate-x-1 transition-transform duration-200">
-                <ArrowRightIcon size={18} />
-              </span>
+              <ArrowRightIcon size={18} className="group-hover:translate-x-1 transition-transform duration-200" />
             </motion.button>
           </motion.div>
         </motion.div>
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
-      <footer className="bg-slate-900 py-8 px-4 text-center">
-        <p className="text-slate-500 text-sm">
-          © {new Date().getFullYear()} CareConnect · Built with ❤️ for families everywhere
+      <footer className="bg-slate-900 py-10 px-4 text-center border-t border-slate-800">
+        <p className="text-slate-500 text-xs font-semibold tracking-wide uppercase">
+          © {new Date().getFullYear()} CareConnect · Built with care for family safety and ecosystem resilience
         </p>
       </footer>
     </div>

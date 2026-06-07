@@ -1,8 +1,39 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { SirenIcon, HeartIcon, PillIcon, ClockIcon, CheckIcon, CopyIcon, MicIcon } from './Icons'
 import { checkSafeZone, formatDistance } from '../utils/geoUtils'
+
+// ── Circular Adherence Ring (shared utility component) ────────────────────────
+// Duplicated here so ElderlyDashboard has no cross-file dependency on Family.
+// If you extract it to a shared file later, remove this copy.
+function AdherenceRing({ pct, size = 52, stroke = 5 }) {
+  const r      = (size - stroke) / 2
+  const circum = 2 * Math.PI * r
+  const offset = circum * (1 - pct / 100)
+  const color  = pct === 100 ? '#10b981' : pct >= 60 ? '#6366f1' : pct >= 30 ? '#f59e0b' : '#ef4444'
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+      <svg width={size} height={size} className="rotate-[-90deg]">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke="currentColor" strokeWidth={stroke} className="text-slate-100" />
+        <motion.circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={circum}
+          initial={{ strokeDashoffset: circum }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[11px] font-black leading-none" style={{ color }}>{pct}%</span>
+      </div>
+    </div>
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -601,7 +632,7 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5 pb-16">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 pb-16">
 
       {/* Full-screen red flash on emergency trigger */}
       <div
@@ -609,237 +640,271 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
         aria-hidden="true"
       />
 
-      {/* ── Hero banner ─────────────────────────────────────────────────── */}
-      <div className="relative rounded-3xl overflow-hidden h-36 sm:h-44 shadow-md">
+      {/* ── Hero banner — full width ─────────────────────────────────────── */}
+      <div className="relative rounded-3xl overflow-hidden h-44 sm:h-52 shadow-md mb-6">
         <img
           src="https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=800&auto=format&fit=crop&q=80"
           alt="Caring hands"
           className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/75 via-indigo-800/50 to-transparent" />
-        <div className="absolute inset-0 flex flex-col justify-center px-6">
+        <div className="absolute inset-0 flex flex-col justify-center px-8">
           <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">Hello,</p>
-          <h1 className="text-white text-2xl sm:text-3xl font-black leading-tight drop-shadow">
+          <h1 className="text-white text-3xl sm:text-4xl font-black leading-tight drop-shadow">
             {userProfile?.name || 'Friend'}
           </h1>
           <p className="text-indigo-200 text-sm mt-1">How are you feeling today?</p>
         </div>
       </div>
 
-      {/* ── Care Code card ──────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center gap-4">
-        <div className="flex-1">
-          <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-1">Your Care Code</p>
-          <p className="text-2xl font-black tracking-widest text-indigo-700 font-mono">{careCode}</p>
-          <p className="text-xs text-slate-400 mt-1">Share this with family members so they can link to you.</p>
-        </div>
-        <button
-          onClick={copyCode}
-          aria-label="Copy Care Code"
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-indigo-400 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 active:scale-95"
-        >
-          <CopyIcon />
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-
-      {/* ── Status banner ───────────────────────────────────────────────── */}
-      <div
-        className={`flex items-center gap-3 rounded-2xl border-2 px-5 py-3.5 transition-all duration-500 ${meta.bg} ${meta.border}`}
-        role="status"
-        aria-live="polite"
+      {/* ── Responsive grid ──────────────────────────────────────────────── */}
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
+        initial="hidden"
+        animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
       >
-        <span className="text-2xl">{meta.emoji}</span>
-        <div className="flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Status</p>
-          <p className={`text-base font-extrabold ${meta.color}`}>{meta.label}</p>
-        </div>
-        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${meta.badge}`}>
-          {isEmergency ? 'URGENT' : isCheckedIn ? 'TODAY' : 'PENDING'}
-        </span>
-      </div>
 
-      {/* ── Safe Zone Status ─────────────────────────────────────────────── */}
-      {geoStatus && (
-        <div
-          className={`rounded-2xl border-2 px-5 py-3.5 transition-all duration-500 ${
-            geoStatus === 'outside'   ? 'bg-red-50 border-red-400' :
-            geoStatus === 'inside'    ? 'bg-emerald-50 border-emerald-300' :
-            geoStatus === 'no_zone'   ? 'bg-amber-50 border-amber-300' :
-                                        'bg-slate-50 border-slate-200'
-          }`}
-          role="status"
-          aria-live="polite"
+        {/* ── LEFT column (lg: spans 2) — status + actions ─────────────── */}
+        <motion.div
+          className="lg:col-span-2 flex flex-col gap-5"
+          variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } } }}
         >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl" aria-hidden="true">
-              {geoStatus === 'outside'   ? '🚨' :
-               geoStatus === 'inside'    ? '🏠' :
-               geoStatus === 'no_zone'   ? '⚙️' :
-               geoStatus === 'acquiring' ? '📡' : '📵'}
-            </span>
-            <div className="flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live Safe Zone</p>
-              <p className={`text-sm font-extrabold ${
-                geoStatus === 'outside'  ? 'text-red-700' :
-                geoStatus === 'inside'   ? 'text-emerald-700' :
-                geoStatus === 'no_zone'  ? 'text-amber-700' : 'text-slate-500'
-              }`}>
-                {geoStatus === 'outside'   ? `Breach! — ${formatDistance(geoDistance)} from home` :
-                 geoStatus === 'inside'    ? `Inside Safe Zone · ${geoDistance != null ? formatDistance(geoDistance) + ' from centre' : ''}` :
-                 geoStatus === 'no_zone'   ? 'Safe zone not set — ask your family to configure it' :
-                 geoStatus === 'acquiring' ? 'Acquiring GPS signal…' : 'Location unavailable'}
+
+          {/* Care Code + Status — side by side on md+ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {/* Care Code card */}
+            <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center gap-4 h-full">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-1">Your Care Code</p>
+                <p className="text-2xl font-black tracking-widest text-indigo-700 font-mono">{careCode}</p>
+                <p className="text-xs text-slate-400 mt-1">Share this with family members so they can link to you.</p>
+              </div>
+              <button
+                onClick={copyCode}
+                aria-label="Copy Care Code"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-indigo-400 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 active:scale-95 shrink-0"
+              >
+                <CopyIcon />
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+
+            {/* Status banner */}
+            <div
+              className={`flex items-center gap-3 rounded-2xl border-2 px-5 py-4 transition-all duration-500 h-full ${meta.bg} ${meta.border}`}
+              role="status"
+              aria-live="polite"
+            >
+              <span className="text-3xl">{meta.emoji}</span>
+              <div className="flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Current Status</p>
+                <p className={`text-base font-extrabold ${meta.color}`}>{meta.label}</p>
+              </div>
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${meta.badge} shrink-0`}>
+                {isEmergency ? 'URGENT' : isCheckedIn ? 'TODAY' : 'PENDING'}
+              </span>
+            </div>
+          </div>
+
+          {/* Safe Zone Status */}
+          {geoStatus && (
+            <motion.div
+              className={`rounded-2xl border-2 px-5 py-3.5 transition-colors duration-500 ${
+                geoStatus === 'outside'   ? 'bg-red-50 border-red-400' :
+                geoStatus === 'inside'    ? 'bg-emerald-50 border-emerald-300' :
+                geoStatus === 'no_zone'   ? 'bg-amber-50 border-amber-300' :
+                                            'bg-slate-50 border-slate-200'
+              }`}
+              role="status"
+              aria-live="polite"
+              animate={geoStatus === 'outside' ? {
+                boxShadow: [
+                  '0 0 0px 0px rgba(239,68,68,0)',
+                  '0 0 24px 6px rgba(239,68,68,0.45)',
+                  '0 0 0px 0px rgba(239,68,68,0)',
+                ],
+              } : { boxShadow: 'none' }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">
+                  {geoStatus === 'outside'   ? '🚨' :
+                   geoStatus === 'inside'    ? '🏠' :
+                   geoStatus === 'no_zone'   ? '⚙️' :
+                   geoStatus === 'acquiring' ? '📡' : '📵'}
+                </span>
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live Safe Zone</p>
+                  <p className={`text-sm font-extrabold ${
+                    geoStatus === 'outside'  ? 'text-red-700' :
+                    geoStatus === 'inside'   ? 'text-emerald-700' :
+                    geoStatus === 'no_zone'  ? 'text-amber-700' : 'text-slate-500'
+                  }`}>
+                    {geoStatus === 'outside'   ? `Breach! — ${formatDistance(geoDistance)} from home` :
+                     geoStatus === 'inside'    ? `Inside Safe Zone · ${geoDistance != null ? formatDistance(geoDistance) + ' from centre' : ''}` :
+                     geoStatus === 'no_zone'   ? 'Safe zone not set — ask your family to configure it' :
+                     geoStatus === 'acquiring' ? 'Acquiring GPS signal…' : 'Location unavailable'}
+                  </p>
+                </div>
+                {geoStatus === 'outside' && (
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800 animate-pulse shrink-0">
+                    ALERT
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Emergency Panic Button */}
+          <div
+            className={`relative rounded-3xl overflow-hidden transition-all duration-300 ${
+              alerting ? 'ring-4 ring-red-400 ring-offset-2 scale-[1.01]' : ''
+            }`}
+          >
+            <div
+              className={`absolute inset-0 rounded-3xl bg-red-600/10 ${!isEmergency ? 'animate-pulse' : ''}`}
+              aria-hidden="true"
+            />
+            <button
+              onClick={handleEmergency}
+              disabled={isEmergency || actionLoading === 'emergency'}
+              aria-label="Emergency panic button — press immediately if you need help"
+              aria-pressed={isEmergency}
+              className={`relative w-full rounded-3xl py-10 px-6 flex flex-col items-center gap-4 transition-all duration-200 focus-visible:outline-4 focus-visible:outline-red-400 shadow-2xl ${
+                isEmergency
+                  ? 'bg-gradient-to-br from-red-900 to-red-700 cursor-not-allowed opacity-80'
+                  : 'bg-gradient-to-br from-red-600 via-red-700 to-rose-800 hover:from-red-500 hover:to-rose-700 active:scale-95 hover:shadow-red-400/50'
+              }`}
+            >
+              {actionLoading === 'emergency' ? (
+                <span className="w-12 h-12 border-4 border-white/40 border-t-white rounded-full animate-spin" aria-hidden="true" />
+              ) : (
+                <div
+                  className={`p-4 rounded-full bg-white/10 border-2 border-white/25 text-white ${!isEmergency ? 'animate-pulse' : ''}`}
+                  aria-hidden="true"
+                >
+                  <SirenIcon size={40} />
+                </div>
+              )}
+              <div className="text-center">
+                <p className="text-white text-3xl sm:text-4xl font-black tracking-wide drop-shadow-lg">
+                  EMERGENCY PANIC BUTTON
+                </p>
+                <p className="text-red-200 text-sm font-medium mt-1.5">
+                  {isEmergency ? '🚨 Help has been alerted — stay calm' : 'Press immediately if you need help'}
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Check-In Button */}
+          <button
+            onClick={handleCheckIn}
+            disabled={isCheckedIn || actionLoading === 'checked_in'}
+            aria-label="Daily check-in — I am feeling fine today"
+            aria-pressed={isCheckedIn}
+            className={`w-full rounded-3xl py-6 px-6 flex items-center gap-5 transition-all duration-200 shadow-lg focus-visible:outline-4 focus-visible:outline-emerald-400 ${
+              isCheckedIn
+                ? 'bg-gradient-to-br from-emerald-700 to-emerald-600 cursor-not-allowed opacity-75'
+                : 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 hover:from-emerald-400 hover:to-teal-600 active:scale-95 hover:shadow-emerald-400/40 hover:shadow-xl hover:scale-[1.01]'
+            }`}
+          >
+            <div className="p-3 rounded-full bg-white/15 border border-white/20 text-white shrink-0">
+              {actionLoading === 'checked_in' ? (
+                <span className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin block" aria-hidden="true" />
+              ) : (
+                <HeartIcon size={24} />
+              )}
+            </div>
+            <div className="text-left flex-1">
+              <p className="text-white font-black text-xl leading-tight">
+                {isCheckedIn ? 'Checked In for Today ✓' : 'I Am Feeling Fine Today'}
+              </p>
+              <p className="text-emerald-100 text-xs font-medium mt-0.5">
+                {isCheckedIn ? 'Your family has been notified' : 'Tap to send your daily check-in to your family'}
               </p>
             </div>
-            {geoStatus === 'outside' && (
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800 animate-pulse">
-                ALERT
+          </button>
+
+          {/* Medicine Reminders */}
+          <section aria-labelledby="med-heading" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-50">
+              <span className="p-2 rounded-xl bg-violet-50 text-violet-600"><PillIcon /></span>
+              <h2 id="med-heading" className="text-base font-black text-slate-800">Today's Medicines</h2>
+              {/* Live adherence ring */}
+              {medicines.length > 0 && (
+                <div className="ml-1">
+                  <AdherenceRing
+                    pct={Math.round((medicines.filter(m => m.taken).length / medicines.length) * 100)}
+                    size={44}
+                    stroke={4}
+                  />
+                </div>
+              )}
+              <span className="ml-auto text-xs font-bold bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full">
+                {medicines.filter(m => !m.taken).length} pending
               </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Emergency Panic Button ──────────────────────────────────────── */}
-      <div
-        className={`relative rounded-3xl overflow-hidden transition-all duration-300 ${
-          alerting ? 'ring-4 ring-red-400 ring-offset-2 scale-[1.01]' : ''
-        }`}
-      >
-        {/* Pulsing glow behind button */}
-        <div
-          className={`absolute inset-0 rounded-3xl bg-red-600/10 ${!isEmergency ? 'animate-pulse' : ''}`}
-          aria-hidden="true"
-        />
-
-        <button
-          onClick={handleEmergency}
-          disabled={isEmergency || actionLoading === 'emergency'}
-          aria-label="Emergency panic button — press immediately if you need help"
-          aria-pressed={isEmergency}
-          className={`relative w-full rounded-3xl py-8 px-6 flex flex-col items-center gap-4 transition-all duration-200 focus-visible:outline-4 focus-visible:outline-red-400 shadow-2xl ${
-            isEmergency
-              ? 'bg-gradient-to-br from-red-900 to-red-700 cursor-not-allowed opacity-80'
-              : 'bg-gradient-to-br from-red-600 via-red-700 to-rose-800 hover:from-red-500 hover:to-rose-700 active:scale-95 hover:shadow-red-400/50'
-          }`}
-        >
-          {actionLoading === 'emergency' ? (
-            <span className="w-10 h-10 border-4 border-white/40 border-t-white rounded-full animate-spin" aria-hidden="true" />
-          ) : (
-            <div
-              className={`p-4 rounded-full bg-white/10 border-2 border-white/25 text-white ${!isEmergency ? 'animate-pulse' : ''}`}
-              aria-hidden="true"
-            >
-              <SirenIcon size={36} />
             </div>
-          )}
+            <ul className="divide-y divide-slate-50" aria-label="Medicine list">
+              {medicines.length === 0 && (
+                <li className="px-5 py-8 text-center text-slate-400 text-sm">
+                  No medicines scheduled yet.<br />Ask a family member to add some.
+                </li>
+              )}
+              {[...medicines]
+                .sort((a, b) => a.time.localeCompare(b.time))
+                .map(med => (
+                  <li
+                    key={med.id}
+                    className={`flex items-center gap-4 px-5 py-3.5 transition-all duration-200 hover:bg-slate-50/80 ${med.taken ? 'opacity-55' : ''}`}
+                  >
+                    <div className={`p-2 rounded-xl ${med.taken ? 'bg-emerald-50 text-emerald-500' : 'bg-violet-50 text-violet-500'}`}>
+                      <PillIcon />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-bold text-sm ${med.taken ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                        {med.name}
+                        {med.dose && <span className="ml-1.5 font-normal text-slate-400">{med.dose}</span>}
+                      </p>
+                      <p className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                        <ClockIcon />{med.time} · {med.clock}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleMarkTaken(med)}
+                      disabled={med.taken || !!actionLoading}
+                      aria-label={med.taken ? `${med.name} already taken` : `Mark ${med.name} as taken`}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all focus-visible:outline-2 focus-visible:outline-indigo-500 ${
+                        med.taken
+                          ? 'bg-emerald-100 text-emerald-600 cursor-not-allowed'
+                          : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white active:scale-95'
+                      }`}
+                    >
+                      {actionLoading === `taken-${med.id}` ? (
+                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CheckIcon />
+                      )}
+                      {med.taken ? 'Done' : 'Taken'}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
 
-          <div className="text-center">
-            <p className="text-white text-2xl sm:text-3xl font-black tracking-wide drop-shadow-lg">
-              EMERGENCY PANIC BUTTON
-            </p>
-            <p className="text-red-200 text-sm font-medium mt-1.5">
-              {isEmergency
-                ? '🚨 Help has been alerted — stay calm'
-                : 'Press immediately if you need help'}
-            </p>
-          </div>
-        </button>
-      </div>
+        </motion.div>{/* end left column */}
 
-      {/* ── I Am Feeling Fine / Check-In Button ─────────────────────────── */}
-      <button
-        onClick={handleCheckIn}
-        disabled={isCheckedIn || actionLoading === 'checked_in'}
-        aria-label="Daily check-in — I am feeling fine today"
-        aria-pressed={isCheckedIn}
-        className={`w-full rounded-3xl py-6 px-6 flex items-center gap-5 transition-all duration-200 shadow-lg focus-visible:outline-4 focus-visible:outline-emerald-400 ${
-          isCheckedIn
-            ? 'bg-gradient-to-br from-emerald-700 to-emerald-600 cursor-not-allowed opacity-75'
-            : 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 hover:from-emerald-400 hover:to-teal-600 active:scale-95 hover:shadow-emerald-400/40 hover:shadow-xl hover:scale-[1.01]'
-        }`}
-      >
-        <div className="p-3 rounded-full bg-white/15 border border-white/20 text-white shrink-0">
-          {actionLoading === 'checked_in' ? (
-            <span className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin block" aria-hidden="true" />
-          ) : (
-            <HeartIcon size={24} />
-          )}
-        </div>
-        <div className="text-left flex-1">
-          <p className="text-white font-black text-xl leading-tight">
-            {isCheckedIn ? 'Checked In for Today ✓' : 'I Am Feeling Fine Today'}
-          </p>
-          <p className="text-emerald-100 text-xs font-medium mt-0.5">
-            {isCheckedIn
-              ? 'Your family has been notified'
-              : 'Tap to send your daily check-in to your family'}
-          </p>
-        </div>
-      </button>
+        {/* ── RIGHT column — AI guardian ────────────────────────────────── */}
+        <motion.div
+          className="lg:col-span-1 flex flex-col gap-5"
+          variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 } } }}
+        >
+          <AiHealthGuardian groupRef={groupRef} />
+        </motion.div>
 
-      {/* ── AI Health Guardian ───────────────────────────────────────────── */}
-      <AiHealthGuardian groupRef={groupRef} />
-
-      {/* ── Medicine Reminders ───────────────────────────────────────────── */}
-      <section aria-labelledby="med-heading" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-50">
-          <span className="p-2 rounded-xl bg-violet-50 text-violet-600"><PillIcon /></span>
-          <h2 id="med-heading" className="text-base font-black text-slate-800">Today's Medicines</h2>
-          <span className="ml-auto text-xs font-bold bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full">
-            {medicines.filter(m => !m.taken).length} pending
-          </span>
-        </div>
-
-        <ul className="divide-y divide-slate-50" aria-label="Medicine list">
-          {medicines.length === 0 && (
-            <li className="px-5 py-8 text-center text-slate-400 text-sm">
-              No medicines scheduled yet.<br />Ask a family member to add some.
-            </li>
-          )}
-
-          {[...medicines]
-            .sort((a, b) => a.time.localeCompare(b.time))
-            .map(med => (
-              <li
-                key={med.id}
-                className={`flex items-center gap-4 px-5 py-3.5 transition-all duration-200 hover:bg-slate-50/80 ${med.taken ? 'opacity-55' : ''}`}
-              >
-                <div className={`p-2 rounded-xl ${med.taken ? 'bg-emerald-50 text-emerald-500' : 'bg-violet-50 text-violet-500'}`}>
-                  <PillIcon />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className={`font-bold text-sm ${med.taken ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                    {med.name}
-                    {med.dose && <span className="ml-1.5 font-normal text-slate-400">{med.dose}</span>}
-                  </p>
-                  <p className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-                    <ClockIcon />{med.time} · {med.clock}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => handleMarkTaken(med)}
-                  disabled={med.taken || !!actionLoading}
-                  aria-label={med.taken ? `${med.name} already taken` : `Mark ${med.name} as taken`}
-                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all focus-visible:outline-2 focus-visible:outline-indigo-500 ${
-                    med.taken
-                      ? 'bg-emerald-100 text-emerald-600 cursor-not-allowed'
-                      : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white active:scale-95'
-                  }`}
-                >
-                  {actionLoading === `taken-${med.id}` ? (
-                    <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-                  ) : (
-                    <CheckIcon />
-                  )}
-                  {med.taken ? 'Done' : 'Taken'}
-                </button>
-              </li>
-            ))}
-        </ul>
-      </section>
+      </motion.div>{/* end grid */}
     </div>
   )
 }
