@@ -188,7 +188,7 @@ export default function LandingPage({ onOpenAuth }) {
             <div className="absolute -inset-2 rounded-[2.5rem] bg-gradient-to-br from-indigo-500/10 to-transparent blur-xl" />
             <div className="relative rounded-[2rem] overflow-hidden border border-slate-200/80 shadow-xl bg-white aspect-[4/3] max-h-[440px]">
               <img 
-                src="https://images.unspash.com/photo-1516627145497-ae6968895b74?w=800&auto=format&fit=crop&q=85" 
+                src="https://plus.unsplash.com/premium_photo-1661340986594-afd7deb5882e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTN8fGVsZGVybHklMjBjYXJlfGVufDB8fDB8fHww" 
                 alt="Happy family staying connected through digital healthcare application" 
                 className="w-full h-full object-cover filter contrast-[1.01]"
               />

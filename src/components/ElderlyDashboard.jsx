@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { SirenIcon, HeartIcon, PillIcon, ClockIcon, CheckIcon, CopyIcon, MicIcon } from './Icons'
@@ -39,6 +39,180 @@ function AdherenceRing({ pct, size = 52, stroke = 5 }) {
 
 function ts() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+// ── Medication alarm — time parsing & TTS ─────────────────────────────────────
+
+/**
+ * Converts a clock string like "7:30 AM", "09:00 PM", "14:30" into
+ * a zero-padded "HH:MM" 24-hour string for reliable comparison.
+ * Returns null if the string can't be parsed.
+ */
+function parseMedTime(clockStr) {
+  if (!clockStr) return null
+  const s = clockStr.trim().toUpperCase()
+
+  // Try 12-hour format: "7:30 AM", "12:00 PM", "9 PM"
+  const match12 = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/)
+  if (match12) {
+    let h = parseInt(match12[1], 10)
+    const m = parseInt(match12[2] ?? '0', 10)
+    const period = match12[3]
+    if (period === 'AM' && h === 12) h = 0
+    if (period === 'PM' && h !== 12) h += 12
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+
+  // Try 24-hour format: "14:30", "07:00"
+  const match24 = s.match(/^(\d{1,2}):(\d{2})$/)
+  if (match24) {
+    const h = parseInt(match24[1], 10)
+    const m = parseInt(match24[2], 10)
+    if (h >= 0 && h < 24 && m >= 0 && m < 60) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+  }
+
+  return null
+}
+
+/** Returns the current local time as "HH:MM" */
+function currentHHMM() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+/**
+ * Speaks a medicine reminder using the Web Speech API.
+ * Optimised for elderly listeners: slow rate, high volume, clear pause.
+ * Returns the SpeechSynthesisUtterance so the caller can cancel it.
+ */
+function speakMedReminder(medName, clockStr) {
+  const synth = window.speechSynthesis
+  if (!synth) return null
+
+  synth.cancel() // clear any queued speech first
+
+  const text =
+    `Assalam-o-Alaikum! ` +
+    `It is ${clockStr}. ` +
+    `It is time to take your medicine, ${medName}. ` +
+    `Please take your medicine now.`
+
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.rate   = 0.78   // slower — easier for elderly ears
+  utterance.pitch  = 1.05
+  utterance.volume = 1.0
+
+  // Repeat twice with a short pause between
+  utterance.onend = () => {
+    setTimeout(() => {
+      const repeat = new SpeechSynthesisUtterance(text)
+      repeat.rate   = 0.78
+      repeat.pitch  = 1.05
+      repeat.volume = 1.0
+      synth.speak(repeat)
+    }, 1200)
+  }
+
+  synth.speak(utterance)
+  return utterance
+}
+
+// ── Medication Alarm Overlay ──────────────────────────────────────────────────
+
+function MedicationAlarmOverlay({ med, onMarkTaken, onDismiss, lang = 'en' }) {
+  const isUrdu = lang === 'ur'
+
+  return (
+    <motion.div
+      key="med-alarm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(15, 10, 40, 0.88)', backdropFilter: 'blur(12px)' }}
+      aria-modal="true"
+      role="alertdialog"
+      aria-label="Medication reminder"
+    >
+      {/* Radial glow */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse at center, rgba(139,92,246,0.18) 0%, transparent 70%)' }}
+        aria-hidden="true"
+      />
+
+      <motion.div
+        initial={{ scale: 0.88, y: 32, opacity: 0 }}
+        animate={{ scale: 1,    y: 0,  opacity: 1 }}
+        exit={{    scale: 0.92, y: 16, opacity: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-sm bg-gradient-to-br from-violet-950 via-indigo-950 to-slate-950 rounded-[2rem] border border-violet-400/30 shadow-2xl overflow-hidden flex flex-col items-center gap-6 px-8 py-10"
+      >
+        {/* Shimmer top */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
+
+        {/* Pulsing pill icon */}
+        <motion.div
+          animate={{ scale: [1, 1.14, 1], boxShadow: ['0 0 0px rgba(167,139,250,0)', '0 0 40px rgba(167,139,250,0.55)', '0 0 0px rgba(167,139,250,0)'] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-24 h-24 rounded-[2rem] bg-violet-600/25 border-2 border-violet-400/50 flex items-center justify-center"
+        >
+          <span className="text-5xl" aria-hidden="true">💊</span>
+        </motion.div>
+
+        {/* Time */}
+        <div className="text-center" dir={isUrdu ? 'rtl' : 'ltr'}>
+          <p className="text-violet-300 text-sm font-bold uppercase tracking-widest mb-1">
+            {isUrdu ? 'دوائی کا وقت' : 'Medicine Time'}
+          </p>
+          <p className="text-white text-5xl font-black tracking-tight">
+            {med.clock}
+          </p>
+          <p className="text-violet-200/70 text-sm mt-1">
+            {isUrdu ? med.time : med.time}
+          </p>
+        </div>
+
+        {/* Medicine name */}
+        <div
+          className="w-full bg-white/8 border border-white/12 rounded-2xl px-5 py-4 text-center"
+          dir={isUrdu ? 'rtl' : 'ltr'}
+        >
+          <p className="text-white/55 text-xs font-bold uppercase tracking-widest mb-1">
+            {isUrdu ? 'دوائی' : 'Medicine'}
+          </p>
+          <p className="text-white text-2xl font-black leading-tight">{med.name}</p>
+          {med.dose && (
+            <p className="text-violet-300 text-base font-semibold mt-1">{med.dose}</p>
+          )}
+        </div>
+
+        {/* Mark as Taken — primary action */}
+        <motion.button
+          onClick={onMarkTaken}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          className="w-full py-5 rounded-2xl font-black text-lg text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-xl shadow-emerald-900/40 transition-colors"
+        >
+          {isUrdu ? '✓ دوائی لی گئی' : '✓ Mark as Taken'}
+        </motion.button>
+
+        {/* Snooze / dismiss */}
+        <button
+          onClick={onDismiss}
+          className="text-white/35 text-sm font-semibold hover:text-white/60 transition-colors"
+        >
+          {isUrdu ? 'بعد میں یاد دلائیں' : 'Remind me later'}
+        </button>
+
+        {/* Bottom shimmer */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent" aria-hidden="true" />
+      </motion.div>
+    </motion.div>
+  )
 }
 
 // ── Agentic AI voice call — fires against the local Express backend ───────────
@@ -463,6 +637,18 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
   const [geoDistance, setGeoDistance]     = useState(null)
   const breachLoggedRef                   = useRef(false) // prevent duplicate log entries
 
+  // ── Language toggle ───────────────────────────────────────────────────────
+  const [lang, setLang] = useState('en')
+  const isUrdu = lang === 'ur'
+
+  // ── Medication alarm state ────────────────────────────────────────────────
+  // alarmMed: medicine object currently ringing — null means no alarm is active
+  const [alarmMed, setAlarmMed]     = useState(null)
+  // Tracks <medId>_<HHMM> keys to avoid re-firing the same alarm within a minute
+  const firedRef    = useRef(new Set())
+  // Tracks medicines the elder snoozed this session (won't re-fire until next minute)
+  const snoozedRef  = useRef(new Set())
+
   const status      = groupData?.status || 'unknown'
   const medicines   = groupData?.medicines || []
   const meta        = STATUS_META[status] || STATUS_META.unknown
@@ -506,9 +692,12 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
 
       if (outside && !breachLoggedRef.current) {
         breachLoggedRef.current = true
+        // NOTE: We deliberately do NOT write status: 'emergency' here.
+        // A geo-fence breach is a passive location alert — it must never
+        // auto-trigger the SOS state. Only the elder's explicit button press
+        // (handleEmergency) is allowed to set status: 'emergency'.
         updateDoc(groupRef, {
           is_breached: true,
-          status: 'emergency',
           activity_logs: arrayUnion({
             type:    'geo_breach',
             emoji:   '🚨',
@@ -541,23 +730,74 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
   }
 
   // ── Real GPS watcher ───────────────────────────────────────────────────────
+  // Dependency array uses the safe zone coordinates (not the safeZone object)
+  // so the watcher only restarts when the zone is actually reconfigured.
+  // processLocation is called inside the watcher callback — it safely reads
+  // current component state via closure without needing to be in deps.
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeoStatus('unavailable')
       return
     }
     setGeoStatus('acquiring')
-    breachLoggedRef.current = false
+    breachLoggedRef.current = false  // reset latch when zone changes
 
     const watchId = navigator.geolocation.watchPosition(
       ({ coords }) => processLocation(coords.latitude, coords.longitude),
-      (err) => { console.warn('Geolocation error:', err.message); setGeoStatus('unavailable') },
+      (err) => {
+        console.warn('Geolocation error:', err.message)
+        setGeoStatus('unavailable')
+      },
       { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 }
     )
+
+    // Always clean up — prevents multiple active watchers on re-render
     return () => navigator.geolocation.clearWatch(watchId)
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safeZone?.lat, safeZone?.lng, safeZone?.radius])
 
   // ── Firestore write helper ────────────────────────────────────────────────
+
+  // ── Medication alarm scheduler ────────────────────────────────────────────
+  // Runs every 30 seconds. Compares current HH:MM against each untaken
+  // medicine's parsed clock time. Fires TTS + overlay on first match per
+  // medicine per minute. Safe to run frequently — deduplication via firedRef.
+  useEffect(() => {
+    function checkAlarms() {
+      if (!medicines || medicines.length === 0) return
+      const now = currentHHMM()
+
+      for (const med of medicines) {
+        if (med.taken) continue
+
+        const medTime = parseMedTime(med.clock)
+        if (!medTime) continue
+
+        const key = `${med.id}_${medTime}`
+        if (firedRef.current.has(key)) continue   // already rang this minute
+        if (snoozedRef.current.has(med.id)) continue // snoozed by elder
+
+        if (now === medTime) {
+          firedRef.current.add(key)
+          setAlarmMed(med)
+          speakMedReminder(med.name, med.clock)
+          break // one alarm at a time — most urgent (first match) wins
+        }
+      }
+
+      // Reset fired keys at midnight so alarms work again the next day
+      const [h, m] = now.split(':').map(Number)
+      if (h === 0 && m === 0) {
+        firedRef.current.clear()
+        snoozedRef.current.clear()
+      }
+    }
+
+    checkAlarms() // run immediately on mount / medicines change
+    const intervalId = setInterval(checkAlarms, 30_000) // then every 30 s
+    return () => clearInterval(intervalId)
+  }, [medicines]) // re-register whenever the medicines list updates from Firestore
   async function pushUpdate(newStatus, logEntry) {
     setActionLoading(newStatus)
     try {
@@ -623,9 +863,23 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
     }
   }
 
+  // ── Alarm: mark taken from overlay ───────────────────────────────────────
+  async function handleAlarmMarkTaken() {
+    window.speechSynthesis?.cancel()
+    const med = alarmMed
+    setAlarmMed(null)
+    if (med) await handleMarkTaken(med)
+  }
+
+  // ── Alarm: snooze (dismiss without marking taken) ─────────────────────────
+  function handleAlarmSnooze() {
+    window.speechSynthesis?.cancel()
+    if (alarmMed) snoozedRef.current.add(alarmMed.id)
+    setAlarmMed(null)
+  }
+
   // ── Copy care code ────────────────────────────────────────────────────────
-  function copyCode() {
-    navigator.clipboard.writeText(careCode).then(() => {
+  function copyCode() {    navigator.clipboard.writeText(careCode).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -639,6 +893,19 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
         className={`fixed inset-0 bg-red-500 pointer-events-none z-40 transition-opacity duration-300 ${alerting ? 'opacity-20' : 'opacity-0'}`}
         aria-hidden="true"
       />
+
+      {/* ── Medication alarm overlay ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {alarmMed && (
+          <MedicationAlarmOverlay
+            key={alarmMed.id}
+            med={alarmMed}
+            lang={lang}
+            onMarkTaken={handleAlarmMarkTaken}
+            onDismiss={handleAlarmSnooze}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Hero banner — full width ─────────────────────────────────────── */}
       <div className="relative rounded-3xl overflow-hidden h-44 sm:h-52 shadow-md mb-6">
