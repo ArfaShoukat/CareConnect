@@ -9,6 +9,33 @@ function ts() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+// ── Agentic AI voice call — fires against the local Express backend ───────────
+// The backend (server/index.js) holds all Twilio + Groq credentials securely.
+// This function is intentionally fire-and-forget: a failure never blocks the
+// Firestore emergency write, so the panic button always works even offline.
+async function triggerAiVoiceAgentCall(elderName, familyPhone) {
+  if (!familyPhone) {
+    console.warn('triggerAiVoiceAgentCall: no familyPhone provided — skipping call')
+    return
+  }
+  try {
+    const res = await fetch('http://localhost:3001/call-emergency', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ elderlyName: elderName, familyPhone }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      console.log('📞 AI voice call placed — SID:', data.callSid)
+    } else {
+      console.warn('📞 Voice call failed:', data.error)
+    }
+  } catch (err) {
+    // Server may not be running in all environments — log but never throw
+    console.warn('📞 Voice agent unreachable (is server/index.js running?):', err.message)
+  }
+}
+
 // ── Groq AI engine ────────────────────────────────────────────────────────────
 //
 // Calls Groq's OpenAI-compatible REST API (llama-3.3-70b-versatile).
@@ -423,11 +450,21 @@ export default function ElderlyDashboard({ groupData, careCode, userProfile }) {
     if (isEmergency || actionLoading) return
     setAlerting(true)
     setTimeout(() => setAlerting(false), 1800)
+
+    // 1. Write emergency status to Firestore — this always runs first
     await pushUpdate('emergency', {
       type: 'emergency',
       emoji: '🔴',
       message: 'Emergency Triggered!',
     })
+
+    // 2. Fire AI voice call to family — non-blocking, never affects Firestore write
+    //    groupData.familyPhone should be stored on the care_groups doc by the
+    //    family member during signup (or added later via profile settings)
+    triggerAiVoiceAgentCall(
+      userProfile?.name || 'Your elder',
+      groupData?.familyPhone ?? groupData?.phone ?? null,
+    )
   }
 
   // ── Check-in ──────────────────────────────────────────────────────────────

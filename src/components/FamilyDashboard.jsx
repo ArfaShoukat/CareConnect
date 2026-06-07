@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { PillIcon, ClockIcon, ActivityIcon, PlusIcon, TrashIcon, ShieldIcon, PhoneIcon } from './Icons'
@@ -157,7 +158,11 @@ function AiInsights({ status, logs }) {
 
 function EmergencyPanel({ elderlyName, phone, onResolve, resolving }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97, y: -12 }}
+      animate={{ opacity: 1, scale: 1,    y: 0     }}
+      exit={{    opacity: 0, scale: 0.97, y: -12   }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="relative overflow-hidden rounded-3xl border-2 border-red-500 bg-gradient-to-br from-red-700 via-red-800 to-rose-900 shadow-2xl shadow-red-500/40"
       role="alert"
       aria-live="assertive"
@@ -197,61 +202,91 @@ function EmergencyPanel({ elderlyName, phone, onResolve, resolving }) {
 
         <div className="border-t border-white/10" aria-hidden="true" />
 
-        {/* Maps link — opens a live location marker */}
-        <a
+        {/* Maps link */}
+        <motion.a
           href="https://www.google.com/maps/search/?api=1&query=24.8607,67.0011"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2.5 w-full py-3 px-4 rounded-2xl font-bold text-sm bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-white"
+          whileHover={{ backgroundColor: 'rgba(255,255,255,0.18)' }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center justify-center gap-2.5 w-full py-3 px-4 rounded-2xl font-bold text-sm bg-white/10 border border-white/20 text-white transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-white"
           aria-label="Open live location in Google Maps"
         >
           <span aria-hidden="true">📍</span>
           Track Live Location
-        </a>
+        </motion.a>
 
-        {/* Action buttons */}
+        {/* ── Action buttons ─────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row gap-3">
 
-          {/* Call Elder — dials the phone number stored in Firestore */}
-          <a
+          {/* Call Elder — native phone dialer via tel: protocol */}
+          <motion.a
             href={phone ? `tel:${phone}` : '#'}
-            className="flex-1 flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold text-sm bg-white/15 border border-white/25 text-white hover:bg-white/25 active:scale-95 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-white"
-            aria-label={`Call ${elderlyName || 'the elderly person'}`}
+            whileHover={{ scale: 1.03, backgroundColor: 'rgba(99,102,241,0.85)' }}
+            whileTap={{ scale: 0.96 }}
+            className="flex-1 flex items-center justify-center gap-2.5 py-4 px-4 rounded-2xl font-black text-sm
+              bg-indigo-600 border-2 border-indigo-400/60 text-white
+              shadow-lg shadow-indigo-900/40
+              transition-colors duration-150
+              focus-visible:outline-2 focus-visible:outline-indigo-300"
+            aria-label={`Call ${elderlyName || 'the elderly person'}${phone ? ' at ' + phone : ''}`}
           >
             <PhoneIcon size={18} />
-            Call Elder
-          </a>
+            <span>Call Elder</span>
+            {phone && (
+              <span className="text-indigo-200 font-normal text-xs truncate max-w-[90px]">
+                {phone}
+              </span>
+            )}
+          </motion.a>
 
-          {/* Emergency Services — direct dial 1122 */}
-          <a
+          {/* Emergency Helpline — direct dial 1122 */}
+          <motion.a
             href="tel:1122"
-            className="flex-1 flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold text-sm bg-white text-red-700 hover:bg-red-50 shadow-lg shadow-black/20 active:scale-95 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-white"
-            aria-label="Contact emergency services at 1122"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            className="flex-1 flex items-center justify-center gap-2.5 py-4 px-4 rounded-2xl font-black text-sm
+              bg-white text-red-700
+              border-2 border-red-200
+              shadow-lg shadow-red-900/25
+              hover:bg-red-50
+              transition-colors duration-150
+              focus-visible:outline-2 focus-visible:outline-red-400"
+            aria-label="Call emergency helpline 1122"
           >
-            🚑 Contact 1122
-          </a>
+            <span className="text-lg leading-none" aria-hidden="true">🚑</span>
+            <span>Helpline 1122</span>
+          </motion.a>
 
-          {/* ✅ Mark as Resolved */}
-          <button
+          {/* Mark as Resolved — async Firestore update */}
+          <motion.button
             onClick={onResolve}
             disabled={resolving}
-            className="flex-1 flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold text-sm bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/30 active:scale-95 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-emerald-300 disabled:opacity-70 disabled:cursor-not-allowed"
+            whileHover={resolving ? {} : { scale: 1.03 }}
+            whileTap={resolving ? {} : { scale: 0.96 }}
+            className="flex-1 flex items-center justify-center gap-2.5 py-4 px-4 rounded-2xl font-black text-sm
+              bg-emerald-500 hover:bg-emerald-400 text-white
+              border-2 border-emerald-400/50
+              shadow-lg shadow-emerald-900/30
+              transition-colors duration-150
+              focus-visible:outline-2 focus-visible:outline-emerald-300
+              disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label="Mark emergency as resolved"
           >
             {resolving ? (
               <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden="true" />
             ) : (
-              <span aria-hidden="true">✅</span>
+              <span className="text-base leading-none" aria-hidden="true">✅</span>
             )}
-            {resolving ? 'Resolving…' : 'Mark as Resolved'}
-          </button>
+            {resolving ? 'Resolving…' : 'Mark Resolved'}
+          </motion.button>
         </div>
 
-        <p className="text-red-300/70 text-[11px] text-center font-medium">
+        <p className="text-red-300/60 text-[11px] text-center font-medium">
           Resolving will set status back to Safe and append a timestamped log entry.
         </p>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -461,14 +496,16 @@ export default function FamilyDashboard({ groupData, careCode, userProfile }) {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5 pb-16">
 
       {/* ── Emergency Response Panel ─────────────────────────────────────── */}
-      {isEmergency && (
-        <EmergencyPanel
-          elderlyName={groupData?.elderlyName}
-          phone={groupData?.phone}
-          onResolve={handleResolve}
-          resolving={resolving}
-        />
-      )}
+      <AnimatePresence>
+        {isEmergency && (
+          <EmergencyPanel
+            elderlyName={groupData?.elderlyName}
+            phone={groupData?.phone}
+            onResolve={handleResolve}
+            resolving={resolving}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Welcome header ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
