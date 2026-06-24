@@ -28,9 +28,25 @@ export default function App() {
       setUser(firebaseUser)
 
       if (firebaseUser) {
-        // Fetch user profile from Firestore
-        const profileSnap = await getDoc(doc(db, 'users', firebaseUser.uid))
-        setUserProfile(profileSnap.exists() ? profileSnap.data() : null)
+        // Fetch user profile from Firestore.
+        // On fresh signup the profile document may not exist yet (race between
+        // createUserWithEmailAndPassword resolving and the setDoc completing).
+        // We do an initial getDoc; if the document is missing we fall back to
+        // a real-time onSnapshot that resolves as soon as the write lands.
+        const profileRef = doc(db, 'users', firebaseUser.uid)
+        const profileSnap = await getDoc(profileRef)
+
+        if (profileSnap.exists()) {
+          setUserProfile(profileSnap.data())
+        } else {
+          // Document not written yet — subscribe and pick it up when it arrives
+          const unsubProfile = onSnapshot(profileRef, (snap) => {
+            if (snap.exists()) {
+              setUserProfile(snap.data())
+              unsubProfile() // unsubscribe once we have the data — no leak
+            }
+          })
+        }
       } else {
         setUserProfile(null)
         setGroupData(null)
@@ -87,8 +103,20 @@ export default function App() {
       return <LandingPage onOpenAuth={openAuth} />
     }
 
-    // Logged in but profile or group data still loading
-    if (!userProfile || groupLoading) {
+    // Logged in but profile still resolving (race condition on fresh signup)
+    if (!userProfile) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" aria-hidden="true" />
+            <p className="text-slate-400 text-sm font-semibold">Setting up your account…</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Profile loaded, care group subscription in progress
+    if (groupLoading) {
       return (
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">

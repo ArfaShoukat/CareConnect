@@ -12,9 +12,13 @@ CareConnect is a full-stack web application that links elderly loved ones to the
 
 ## Live Demo
 
+🌐 **[https://careconnect-2026.web.app](https://careconnect-2026.web.app)**
+
+> Deployed on Firebase Hosting (free Spark plan) · Global CDN · Auto SSL
+
 ```
-npm run dev        → http://localhost:5173
-npm run server     → http://localhost:3001 (voice call backend)
+npm run dev        → http://localhost:5173  (local development)
+cd server && npm start → http://localhost:3001  (voice call backend)
 ```
 
 ---
